@@ -58,11 +58,11 @@ A workspace groups related projects and owns a `shared/` tier for assets reused 
 ```bash
 ralphy workspace create fogtown --name "Fog Town"   # new grouping
 ralphy workspace list                                # slug, name, project count
-ralphy workspace use fogtown                         # default home for new projects
+ralphy --root <data_root> --workspace <workspace_id> new "A foggy street scene"
 ralphy project move choose-swamp-001 fogtown         # relocate a project
 ```
 
-Project ids are globally unique and resolve through `registry.json`, so every verb keeps taking a bare `<id>` — you never pass a workspace argument to `generate`, `render`, or `project show`.
+CLI 0.4.0 stores immutable Workspace and Project identities in SQLite. Retain the `id` returned by `new`. Put `--root <data_root> --project <project_id>` before Project commands; generation accepts one destination, so do not also pass `--workspace`. `workspace use` is deprecated.
 
 Ref-style paths resolve project-first, then workspace: cwd → `<project>/` → `<project>/artifacts/refs/` → `workspaces/<ws>/shared/`. The explicit form targets the shared tier directly:
 
@@ -97,25 +97,17 @@ A clean wipe is `rm -rf .ralphy/`. After it:
 - The local registry and config are gone — `registry.json` and `config.json` live at the top of `.ralphy/`.
 - Brand and persona definitions are gone (short JSON — keep a backup).
 - The asset cache is gone — the next `ralphy template use <slug>` re-pulls from the companion repo (SHA-256 verified).
-- The **global** registry at `~/.ralphy/` is untouched — API keys and cross-checkout project mappings survive.
+- Credential and identity migration is explicit; do not copy legacy key files into public Workspace settings.
 
 <Warning>
   A project dir is not safe to manually edit. The manifest, the logs, and the asset versioning all assume the CLI is the only writer. To drop a bad generation, use `ralphy project delete <id>`; never `rm` individual files inside a project.
 </Warning>
 
-## The global registry at `~/.ralphy/`
+## Credentials and machine configuration
 
-Outside the repo, Ralphy keeps a small global registry (distinct from the per-checkout `.ralphy/` data root):
+In CLI 0.4.0, the authoritative data root contains `ralphy.db`. Credentials are separate from public settings. Use scoped `provider auth set <provider> --stdin` to store a key privately, or export it in the parent shell before starting the CLI. Encrypted persistence uses macOS Keychain. Workspace credentials are not inherited by Projects.
 
-```
-~/.ralphy/
-├── config.json        # API keys, ffmpeg path, ralphy version, defaults
-├── projects.json      # known-project registry across checkouts
-├── profiles/          # cached profile dumps
-└── installer.lock     # release-channel pin, used by `ralphy doctor`
-```
-
-`config.json` holds the two API keys. Set them via `ralphy setup` (interactive) or by editing the file. `ralphy doctor` validates them — if a key is missing or stale, the error names the file and the field.
+The compatibility link at `~/.config/ralphy/config.json` may point source developers at a checkout; it is not a provider credential store. Setup does not write keys to JSON or `.env`. See [Environment and configuration](/cli/env-config).
 
 ## Brands, personas, refs
 

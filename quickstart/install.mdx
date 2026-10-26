@@ -1,147 +1,97 @@
 ---
 title: "Install"
-description: "Clone the repo, open it in Claude Code, ask Claude to set you up. The standalone binary is the alternative."
+description: "Install the standalone CLI and initialize a Workspace without a source checkout."
 ---
 
-Ralphy is agent-driven. The fastest install is: clone the repo, open it in Claude Code, ask Claude to set you up. Claude reads `AGENTS.md`, routes to the install playbook, runs `ralphy doctor`, walks you through the key wizard, and confirms. You end with a working `ralphy` invocation and a project ready for the first brief.
+These instructions target CLI **0.4.0** and the matching Ralphy plugin. Install the CLI, add the plugin to your agent, and choose a local directory for your content. A source checkout is only needed to develop Ralphy.
 
-## The default path — clone + Claude Code
-
-```bash
-git clone https://github.com/alecs5am/ralphy.git ugc-cli
-cd ugc-cli
-claude
-```
-
-In chat, say:
-
-> set me up
-
-Claude does the rest:
-
-1. Runs `which bun`, `which ffmpeg`, `which ralphy`. Tells you what's missing.
-2. Installs `bun` and/or `ffmpeg` for you (interactive — you confirm each step).
-3. Drops the `ralphy` binary onto your `PATH` if it isn't there yet.
-4. Runs `ralphy setup` for the two API keys. You paste each one; the wizard pings the provider to verify before saving.
-5. Runs `ralphy doctor` one last time. Greens across the board means you're ready.
-
-The whole thing takes 3-5 minutes on a clean machine, most of it spent grabbing OpenRouter and ElevenLabs keys.
-
-<Note>
-You need Claude Code on your machine for this path. Install it from [claude.com/claude-code](https://claude.com/claude-code) — free for personal use. Cursor, Copilot, and Codex work too once Ralphy is set up; see [Connect your editor](/quickstart/connect-editor).
-</Note>
-
-## What you'll need
-
-- **`git`** — to clone the repo.
-- **Claude Code** (or another supported editor — see [Connect your editor](/quickstart/connect-editor)).
-- **`bun` and `ffmpeg`** on the host. Claude will install them if missing.
-- **An [OpenRouter](https://openrouter.ai/keys) key** — covers image, video, LLM, vision, transcription.
-- **An [ElevenLabs](https://elevenlabs.io/app/settings/api-keys) key** — covers voiceover and music.
-
-You don't need Vercel, FAL, or OpenAI direct. Two keys, one repo, one chat.
-
-## Verify
-
-After Claude finishes, run it yourself to confirm:
-
-```bash
-ralphy doctor -p
-```
-
-```text
- ★ ralphy v0.3.0
-   cwd      /Users/you/ugc-cli
-   project  /Users/you/ugc-cli
-
-   Dependencies
-   ✓ bun
-   ✓ ffmpeg
-
-   API keys
-   ✓ OPENROUTER_API_KEY        OpenRouter
-   ✓ ELEVENLABS_API_KEY        ElevenLabs
-
-   ✓ ready
-```
-
-If anything's red, the `blockers` array tells you the exact next command. Tell Claude "ralphy doctor is failing" and it'll fix it.
-
-## Standalone binary (alternative)
-
-If you don't want to clone the repo — for CI, scripts, or a one-off render — install the binary directly. You still need a `ugc-cli` checkout somewhere on disk for templates and asset cache; the wizard asks for its path.
+## Install the CLI
 
 <Tabs>
-  <Tab title="macOS (brew)">
+  <Tab title="macOS (Homebrew)">
     ```bash
-    brew tap alecs5am/tap
-    brew install ralphy
+    brew install alecs5am/tap/ralphy
     ```
 
-    Brew handles upgrades — `brew upgrade ralphy` picks up new releases.
+    Upgrade with `brew upgrade ralphy`.
   </Tab>
-  <Tab title="Linux/macOS (curl)">
+  <Tab title="macOS / Linux">
     ```bash
     curl -fsSL https://raw.githubusercontent.com/alecs5am/ralphy/main/install.sh | sh
     ```
 
-    The installer detects your OS and arch, drops the binary at `~/.local/bin/ralphy`, appends a PATH line to your shell rc, and strips quarantine on macOS. Reload your shell or open a new terminal.
-
-    Pin a version or change the install dir:
-
-    ```bash
-    RALPHY_VERSION=v0.3.0 RALPHY_BIN_DIR=$HOME/bin \
-      curl -fsSL https://raw.githubusercontent.com/alecs5am/ralphy/main/install.sh | sh
-    ```
+    The installer downloads the standalone binary to `~/.local/bin/ralphy` and configures your PATH when needed. Open a new terminal afterward.
   </Tab>
   <Tab title="npm (cross-platform)">
     ```bash
-    npm i -g @alecs5am/ralphy
+    npm install -g @alecs5am/ralphy
     ```
 
-    The npm package wraps the same binary. Works on Windows without WSL.
-
-    Upgrades: `npm update -g @alecs5am/ralphy`.
+    The wrapper downloads the same platform binary. Upgrade with `npm update -g @alecs5am/ralphy`.
   </Tab>
 </Tabs>
 
-Then run setup yourself:
+Check `ralphy --version` before continuing. The standalone binary includes its Bun runtime. `ralphy doctor` identifies external rendering tools such as FFmpeg that your workflow still needs.
+
+## Add the agent plugin
+
+Follow the [Ralphy plugin installation instructions](https://github.com/alecs5am/ralphy-plugin#install) for Claude Code or Codex. The plugin carries the routing skill, production playbooks, and reference documents; you do not need to clone the runtime repository to obtain them.
+
+## Initialize a library
+
+In the directory where you want to keep content, run:
 
 ```bash
-ralphy setup
+ralphy setup --non-interactive
 ```
 
-The wizard asks for the path to your `ugc-cli` checkout (if you don't have one, `git clone https://github.com/alecs5am/ralphy ugc-cli` first), accepts each key, pings the provider to verify, and writes them to `<project>/.env`.
-
-For CI or scripts, drive setup non-interactively:
+For a fixed location independent of the working directory:
 
 ```bash
-ralphy setup -y \
-  --openrouter-key sk-or-... \
-  --elevenlabs-key xi-... \
-  --project-dir ~/code/ugc-cli
+ralphy --root /absolute/path/to/library setup --non-interactive
 ```
 
-Or pipe a key from stdin: `cat key.txt | ralphy setup -y --openrouter-key -`.
+Setup creates a SQLite store and a default Workspace when none exists. Retain `data_root` and `workspace_id` from the JSON response. Re-running setup preserves existing Workspaces. If the result has a null `workspace_id`, list the Workspaces and choose one explicitly:
 
-<Tip>
-Prefer `direnv`? After `ralphy setup` writes `.env`, add an `.envrc` alongside it with `dotenv` so the keys load on `cd`. Ralphy reads from process env; either source works.
-</Tip>
+```bash
+ralphy --root <data_root> workspace list
+```
 
-## Why clone + Claude Code is the default
+Existing legacy data requires migration; setup does not replace it with an empty library.
 
-Ralphy is built around an agent reading playbooks. The repo *is* the playbook bundle — `AGENTS.md`, `docs/playbooks/`, `templates/`, `MODELS.md`. When Claude Code opens the repo, it gets the routing table on every turn, picks the right playbook per request, and runs `ralphy` for every model call. With the standalone binary alone, you have the engine but not the routing — you'd be improvising prompts and skipping the postmortem-validated patterns the repo ships with.
+## Configure keys privately
 
-In short: the binary runs commands; the repo carries the intelligence. You want both.
+OpenRouter serves image, video, and LLM requests; ElevenLabs serves voice and music. Obtain keys from [OpenRouter](https://openrouter.ai/keys) and [ElevenLabs](https://elevenlabs.io/app/settings/api-keys). Configure only the providers your workflow needs.
 
-## Next
+Export credentials in your own shell before launching the agent or CLI, or pipe them privately into the scoped encrypted store:
 
-Drop your first brief into chat — head to [Your first video](/quickstart/first-video).
+```bash
+ralphy --root <data_root> --workspace <workspace_id> provider auth set openrouter --stdin
+```
+
+Supply stdin from a hidden terminal prompt or an existing shell variable. Never paste keys into chat, place literal keys in argv or shell history, or save them in a project's `.env`. Encrypted persistence uses macOS Keychain; on other platforms, use credentials exported in the parent shell.
+
+`setup` initializes storage. It does not accept keys, ping providers, or write `.env`. Legacy flags such as `--openrouter-key` and `--keys-from-env` are refused.
+
+## Create content in an explicit scope
+
+```bash
+ralphy --root <data_root> --workspace <workspace_id> new "A coffee shop poster"
+```
+
+Retain the immutable `id` (`prj_...`) from the response. Use it for Project commands, with scope flags before the verb:
+
+```bash
+ralphy --root <data_root> --project <project_id> provider auth status openrouter
+ralphy --root <data_root> --project <project_id> doctor
+```
+
+Workspace credentials are not inherited by Projects. If the Project has no credential, configure the same Project scope privately with `provider auth set <provider> --stdin`, or use inherited shell credentials. For generation, pass the Project destination alone; do not also pass `--workspace`.
+
+Configuration status confirms key presence, not provider acceptance. Installation does not require a paid generation. Continue to [Your first video](/quickstart/first-video) after selecting your scope and provider.
 
 ## Related
 
-- [Your first video](/quickstart/first-video) — drive a render from chat
-- [Connect your editor](/quickstart/connect-editor) — wire Cursor, Copilot, or Codex if you don't use Claude Code
-- [setup &amp; doctor reference](/cli/setup-doctor) — every flag and edge case
-- [Install playbook](https://github.com/alecs5am/ralphy/blob/main/docs/playbooks/ralphy-install.md) — canonical source
-- [OpenRouter keys](https://openrouter.ai/keys) and [ElevenLabs keys](https://elevenlabs.io/app/settings/api-keys)
+- [Setup and doctor](/cli/setup-doctor)
+- [Environment and configuration](/cli/env-config)
+- [Setup command reference](/reference/cli/setup)

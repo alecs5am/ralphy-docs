@@ -74,8 +74,8 @@ Codes group by class. Every row carries a message template (with `{placeholder}`
 
 | Code | Message template | Hint |
 |---|---|---|
-| `E_ENV_KEY_MISSING` | Required API key not set: &lt;key&gt; | Run `ralphy setup` and paste the key, or `export <key>=...`. |
-| `E_ENV_KEY_INVALID` | API key for &lt;provider&gt; failed verification | Regenerate the key and re-run `ralphy setup`. |
+| `E_ENV_KEY_MISSING` | Required API key not set: &lt;key&gt; | Use scoped `provider auth set <provider> --stdin` privately or export the key before launch. |
+| `E_ENV_KEY_INVALID` | API key for &lt;provider&gt; failed verification | Regenerate the key and configure the same provider credential scope privately. |
 | `E_DEP_MISSING` | Required dependency not found on PATH: &lt;dep&gt; | Install with `brew install <dep>`, then re-run `ralphy doctor`. |
 | `E_FS_PERMISSION` | Cannot write to &lt;path&gt;: &lt;detail&gt; | Check directory permissions; ensure the user owns the workspace dir. |
 

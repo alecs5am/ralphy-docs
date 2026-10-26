@@ -47,18 +47,20 @@ The detail of what each mode emits lives on [Output modes](/cli/output-modes).
 
 When neither `--json` nor `--pretty` is set, the CLI checks `process.stdout.isTTY`. Interactive shells get the pretty rendering; pipes (`ralphy ... | jq`) and redirects (`ralphy ... > out.json`) get JSON. This is the right default for both humans and agents — the agent reads stdout as a stream and never needs to set `--json` explicitly.
 
-## Project auto-detection
+## Data roots and explicit scope
 
-The same `preAction` hook resolves the project root. Order:
+For CLI 0.4.0, use `--root <data_root>` for the directory containing `ralphy.db`, followed by one explicit Workspace or Project context:
 
-1. `--cwd <path>` if set — wins outright, `loadProjectEnv()` runs against it.
-2. Walk up from `process.cwd()` looking for `package.json` with `name: "ugc-cli"`.
-3. `RALPHY_PROJECT_DIR` env var if set.
-4. `~/.config/ralphy/config.json#default_project_dir` (set by `ralphy setup --link <path>`).
+```bash
+ralphy --root <data_root> --workspace <workspace_id> new "A coffee shop poster"
+ralphy --root <data_root> --project <project_id> provider list
+```
 
-The `setup` verb is exempt — it has its own first-run logic that handles the unlinked case. Every other verb sees a resolved root or reports `E_PROJECT_NOT_LINKED` when one is needed.
+Put scope flags before the verb. Project generation takes a Project destination alone; do not also pass a Workspace destination. Workspace credentials are not inherited by Projects.
 
-Whenever a root resolves, `loadProjectEnv()` reads `<root>/.env` and merges keys into `process.env`. **Real shell-exported variables always win** — the `.env` only fills the gaps.
+Without `--root`, the CLI discovers an existing `.ralphy` library above the working directory. `setup --non-interactive` can initialize a new one without a source checkout. It preserves legacy data that requires migration.
+
+Source checkout links through `RALPHY_PROJECT_DIR` and `setup --link` remain compatibility options. A project's `.env` is not a provider credential source; use inherited shell credentials or scoped encrypted auth. See [Environment and configuration](/cli/env-config).
 
 ## The bare dashboard
 
