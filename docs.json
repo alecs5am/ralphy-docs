@@ -167,7 +167,6 @@
                   "reference/cli/daemon",
                   "reference/cli/asset",
                   "reference/cli/init",
-                  "reference/cli/dashboard",
                   "reference/cli/version"
                 ]
               },

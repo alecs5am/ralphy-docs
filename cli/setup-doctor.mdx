@@ -1,144 +1,75 @@
 ---
 title: "Setup and doctor"
-description: "The two verbs that get you from a fresh machine to a working ralphy."
+description: "Initialize a standalone Workspace and inspect runtime health."
 ---
 
-`ralphy setup` configures keys and links a project the first time. `ralphy doctor` verifies env health on every run after that. Together they cover bootstrap, recovery, and CI gating. Both emit JSON by default — the agent reads `doctor` on session start to decide whether to ask the user for a missing key.
+For CLI **0.4.0**, `setup` initializes local storage and `doctor` reports runtime prerequisites. Configure provider credentials separately in the scope that will use them.
 
-## ralphy setup
-
-The first-run wizard. Interactive on TTY, scriptable with `--non-interactive`. Reads `OPENROUTER_API_KEY` and `ELEVENLABS_API_KEY`, optionally pings each provider to verify, writes to `<project>/.env`, optionally imports public profiles.
+## Setup
 
 ```bash
-# Interactive — TUI walks you through the keys
-ralphy setup
-
-# Non-interactive: take keys from env
-ralphy setup -y --keys-from-env
-
-# Non-interactive: explicit keys
-ralphy setup -y \
-  --openrouter-key sk-or-... \
-  --elevenlabs-key xi-...
-
-# Read a key from stdin (pipe-friendly)
-cat openrouter.key | ralphy setup -y --openrouter-key -
-
-# Re-link to a different project checkout
-ralphy setup --link /path/to/ugc-cli
-ralphy setup --unlink           # remove the global link
-
-# Capability-only status (no TUI)
+ralphy setup --non-interactive
+ralphy --root /absolute/path/to/library setup --non-interactive
 ralphy setup --status
 ```
 
-The non-interactive path is implied whenever any of `--openrouter-key`, `--elevenlabs-key`, `--keys-from-env`, `--project-dir`, or `--import-profile` is set, so you can drop the explicit `-y`/`--non-interactive` in CI scripts.
+Setup creates a SQLite store and one default Workspace when none exists, with no source checkout required. Its JSON summary includes `data_root`, `workspace_id`, `project_dir`, capabilities, and errors. `project_dir` can be null for standalone installation. With multiple Workspaces, `workspace_id` is null: list them and choose one explicitly. `--status` reports capability status without creating a store.
 
-By default `setup` verifies each key with a live API ping. Pass `--no-verify` to skip; pass `--allow-unverified` to save a key anyway when verification fails.
+Setup discovers an existing library above the working directory. Legacy filesystem data must be migrated before it can become a SQLite library; setup preserves it and refuses initialization there.
 
-Full flag detail: [`/reference/cli/setup`](/reference/cli/setup).
+Compatibility options `--link`, `--unlink`, and `--project-dir` remain for source developers. Credential flags such as `--openrouter-key`, `--elevenlabs-key`, and `--keys-from-env` are deprecated and refused. Setup does not verify provider keys or write `.env`.
 
-## ralphy doctor
+Full flags: [setup reference](/reference/cli/setup).
 
-Env health check. No prompts, no writes — just a JSON report.
+## Credentials
 
-```bash
-ralphy doctor
-```
-
-The report includes:
-
-- `ralphy.version` and install mode (`developer` from a repo checkout, `binary` from a release artifact)
-- `ralphy.linkedProject` — the path resolved by [project auto-detection](/cli/overview)
-- `deps.{bun,ffmpeg}` — both are required
-- `keys` — one boolean per `OPENROUTER_API_KEY`, `ELEVENLABS_API_KEY`
-- `blockers` and `warnings` — concrete remediation strings
-- `versions.{current,latest,update_hint}` — when a newer release is available
-
-<Tabs>
-  <Tab title="Pretty">
-    ```text
-    ✦ ralphy v0.3.0
-      cwd      /Users/you/work/ugc-cli
-      project  /Users/you/work/ugc-cli
-
-    ▸ Dependencies
-      ✓ bun
-      ✓ ffmpeg
-
-    ▸ API keys
-      ✓ OPENROUTER_API_KEY      OpenRouter
-      ✗ ELEVENLABS_API_KEY      ElevenLabs
-
-    ▸ Blockers (1)
-      ✖ ELEVENLABS_API_KEY missing — ElevenLabs required. Run `ralphy setup`.
-    ```
-  </Tab>
-  <Tab title="JSON">
-    ```json
-    {
-      "ralphy": {
-        "installed": true,
-        "version": "0.3.0",
-        "linkedProject": "/Users/you/work/ugc-cli",
-        "mode": "developer",
-        "home": "/Users/you/.ralphy",
-        "repoRoot": "/Users/you/work/ugc-cli",
-        "templatesSource": "repo",
-        "hyperframesSource": "repo"
-      },
-      "deps": { "bun": true, "ffmpeg": true },
-      "keys": { "OPENROUTER_API_KEY": true, "ELEVENLABS_API_KEY": false },
-      "blockers": ["ELEVENLABS_API_KEY missing — ElevenLabs required..."],
-      "warnings": []
-    }
-    ```
-  </Tab>
-</Tabs>
-
-Exit code is non-zero when `blockers` is non-empty — the canonical CI guard.
+Use inherited shell credentials or configure a scoped encrypted credential privately through stdin:
 
 ```bash
-ralphy doctor --json | jq -e '.blockers | length == 0'
+ralphy --root <data_root> --workspace <workspace_id> provider auth set openrouter --stdin
+ralphy --root <data_root> --workspace <workspace_id> provider auth status openrouter
 ```
 
-## Update checks
+Use your own terminal and a hidden prompt or existing shell variable; never put a literal key in a command or chat. Encrypted persistence uses macOS Keychain. On other platforms, export credentials before starting the CLI.
 
-`doctor` checks for a newer release once per 24 hours. The network call is bounded by a 5-second timeout; failure is silent. Disable with:
+A Project has a separate credential scope. After `new`, use the immutable returned `id`:
 
 ```bash
-export RALPHY_DOCTOR_NO_UPDATE_CHECK=1
-# or
-ralphy config set doctor.checkUpdates false
+ralphy --root <data_root> --project <project_id> provider auth set openrouter --stdin
+ralphy --root <data_root> --project <project_id> provider auth status openrouter
 ```
 
-When an update is available, `versions.update_hint` contains the right command for your install (`brew upgrade ralphy` vs `npm update -g @alecs5am/ralphy`).
+Workspace credentials do not automatically become Project credentials. Put global scope flags before the verb. For generation, pass a Project destination or a Workspace destination, never both.
+
+## Doctor
+
+```bash
+ralphy --root <data_root> --workspace <workspace_id> doctor
+ralphy --root <data_root> --project <project_id> doctor
+```
+
+Doctor reports the CLI version, installation mode, dependencies, configured providers, blockers, warnings, and update information. It does not generate media. A configured key is not proof of provider acceptance. Use the explicit Project scope when diagnosing a Project's missing key.
+
+For a JSON health gate:
+
+```bash
+ralphy --root <data_root> --project <project_id> doctor --json | jq -e '.blockers | length == 0'
+```
+
+Doctor checks for newer releases with a bounded timeout. Set `RALPHY_DOCTOR_NO_UPDATE_CHECK=1` to disable that lookup.
 
 ## Common failures
 
 | Symptom | Remediation |
 |---|---|
-| `bun is not installed` | `brew install bun` |
-| `ffmpeg is not installed` | `brew install ffmpeg` |
-| `OPENROUTER_API_KEY missing` | `ralphy setup` and paste, or `export OPENROUTER_API_KEY=...` |
-| `ralphy is not linked to a project` | `cd` into your checkout, or `ralphy setup --link <path>` |
-| `Linked project ... has no package.json` | The project moved. Re-link with `ralphy setup --link <new-path>` |
-
-Every blocker line in `doctor`'s output names the verb that fixes it. Full error code coverage is on [Error catalog](/cli/error-catalog).
-
-## After a fix
-
-Re-run `doctor` to verify. It's idempotent and cheap (no model calls):
-
-```bash
-ralphy doctor && echo "ready"
-```
-
-When the agent runs `doctor` on session start and sees a blocker, it walks the user through the remediation and then re-runs `doctor` until it's green — that's all there is to the "core" playbook.
+| Missing external dependency | Install the tool named by doctor, then repeat the scoped check. |
+| Provider not configured | Export the key before launching the CLI or use scoped `provider auth set --stdin`. |
+| Project key missing after Workspace setup | Configure that Project's credential scope or inherit a shell credential. |
+| `E_MIGRATION_INCOMPLETE` or `E_LEGACY_LAYOUT` | Preserve the existing library and follow the migration procedure. |
+| More than one Workspace | List Workspaces and pass the chosen immutable ID explicitly. |
 
 ## Related
 
-- [Quickstart: install](/quickstart/install) — fresh-machine bootstrap
-- [Env + config](/cli/env-config) — every env var the CLI reads
-- [Error catalog](/cli/error-catalog) — `E_ENV_KEY_MISSING`, `E_DEP_MISSING`, et al.
-- [cli/commands/setup.ts](https://github.com/alecs5am/ralphy/blob/main/cli/commands/setup.ts), [cli/commands/doctor.ts](https://github.com/alecs5am/ralphy/blob/main/cli/commands/doctor.ts)
+- [Install](/quickstart/install)
+- [Environment and configuration](/cli/env-config)
+- [Error catalog](/cli/error-catalog)
